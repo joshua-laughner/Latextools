@@ -62,21 +62,38 @@ def replace_external_refs(tex_file_in, tex_file_out, labels, retain_ref=True):
             writer.write(line)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description='Replace external document cross references with static text.')
+def driver(tex_file, keep_refs=False):
+    tex_file_in = tex_file
+    tex_file_out = tex_file_in.replace('.tex', '-xrfrozen.tex')
+    ex_files = find_external_files(tex_file_in)
+    labels = list_available_labels(ex_files)
+    replace_external_refs(tex_file_in, tex_file_out, labels, retain_ref=keep_refs)
+
+
+def parse_args(parser=None):
+    if parser is None:
+        parser = argparse.ArgumentParser()
+        am_i_main = True
+    else:
+        am_i_main = False
+
+    parser.description = 'Replace external document cross references with static text.'
+    parser.epilog = 'The "xr" package for external references is very helpful when, e.g. cross referencing ' \
+                    'figures or sections between a main paper and supplement. However, many journals do not ' \
+                    'allow the use of extra packages like "xr", so this program will replace labels pointing ' \
+                    'to external documents with static text.'
     parser.add_argument('tex_file', help='The .tex file to freeze external cross references in')
     parser.add_argument('-k', '--keep-refs', action='store_true', help='Keep previous references commented out in the .tex file')
 
-    return parser.parse_args()
+    if am_i_main:
+        return vars(parser.parse_args())
+    else:
+        parser.set_defaults(driver_fxn=driver)
 
 
 def main():
     args = parse_args()
-    tex_file_in = args.tex_file
-    tex_file_out = tex_file_in.replace('.tex', '-xrfrozen.tex')
-    ex_files = find_external_files(tex_file_in)
-    labels = list_available_labels(ex_files)
-    replace_external_refs(tex_file_in, tex_file_out, labels, retain_ref=args.keep_refs)
+    driver(**args)
 
 
 if __name__ == '__main__':

@@ -8,7 +8,9 @@ import pdb
 
 # use a raw string to avoid excessive escaping. This will look for a backslash followed by letters and possibly
 # spaces then an opening curly brace.
-latex_command_re = re.compile(r'\\[a-zA-Z]+?\s*{')
+latex_command_re_str = r'\\[a-zA-Z]+?\s*{'
+latex_command_re = re.compile(latex_command_re_str)
+
 
 def parse_aux_file(aux_file_name):
     _, ext = os.path.splitext(aux_file_name)
@@ -59,6 +61,23 @@ def iter_latex_commands(latex_string):
         yield command, arg
 
 
+def strip_comments(latex_str):
+    """
+    Remove commented parts of a latex text.
+
+    Takes in a string of Latex, and returns it with everything between a non-escaped % and a newline removed
+    (the newline is retained).
+
+    :param latex_str: the string of Latex to strip comments from
+    :type latex_str: str
+
+    :return: latex_str with comments removed
+    :rtype: str
+    """
+    latex_str = re.sub(r'^%')
+    return re.sub(r'(?<=[^\\])%.*?(?=\n)', '', latex_str)
+
+
 def _parse_label_def(aux_file_line):
     if not aux_file_line.startswith('\\newlabel'):
         raise ValueError('Cannot parse a label definition from a string that does not start with "\\newlabel"')
@@ -99,7 +118,7 @@ def _parse_latex_groups(latex_string):
 
         group_substring, n_chars_in_group = _group_inside_delimiter(latex_string[current_idx:])
         current_idx += n_chars_in_group
-        if re.search(latex_command_re + '$', latex_string[:current_idx + 1]) is None:
+        if re.search(latex_command_re_str + '$', latex_string[:current_idx + 1]) is None:
             groups.append(_parse_latex_groups(group_substring))
 
     return groups
