@@ -8,8 +8,12 @@ import pdb
 
 # use a raw string to avoid excessive escaping. This will look for a backslash followed by letters and possibly
 # spaces then an opening curly brace.
-latex_command_re_str = r'\\[a-zA-Z]+?\s*{'
+latex_command_re_str = r'\\[a-zA-Z]+?\s*[{\[]'
 latex_command_re = re.compile(latex_command_re_str)
+
+
+class LatexParsingError(Exception):
+    pass
 
 
 def parse_aux_file(aux_file_name):
@@ -41,6 +45,10 @@ def latex_to_html(latex_string):
     # time.
     html_string = latex_string
     for cmd, arg in iter_latex_commands(latex_string):
+        if len(arg) == 1:
+            arg = arg[0]
+        else:
+            raise NotImplementedError('Not set up to convert Latex commands with multiple arguments to HTML')
         html_representation = latex2html_dict[cmd](arg)
         html_string = html_string.replace('{}{{{}}}'.format(cmd, arg), html_representation, 1)
 
@@ -50,15 +58,36 @@ def latex_to_html(latex_string):
 def iter_latex_commands(latex_string):
     """
     Iterate through the latex commands in a string.
+
     :param latex_string: the string to process
-    :return: the command (including the backslash) and the argument as strings.
+    :type latex_string: str
+
+    :return: 3 return values:
+     1) the command (including the backslash)
+     2) a tuple of the arguments as strings.
+     3) the optional argument (if present) as a string, otherwise this is a None.
     """
     for match in latex_command_re.finditer(latex_string):
-        arg_idx = match.group().index('{')
-        string_idx = arg_idx + match.start()
+        cmd_str = match.group()
+        if cmd_str.endswith('{'):
+            arg_idx = cmd_str.index('{')
+            string_idx = arg_idx + match.start()
+            opt_arg = None
+        elif cmd_str.endswith('['):
+            arg_idx = cmd_str.index('[')
+            opt_arg_idx = arg_idx + match.start()
+            # Latex only supports a single optional argument inside square brackets
+            opt_arg, main_arg_idx = _group_inside_delimiter(latex_string[opt_arg_idx:], '[]')
+            string_idx = main_arg_idx + opt_arg_idx
+        else:
+            raise LatexParsingError('Command string from regex did not end in [ or {')
         command = match.group()[:arg_idx]
-        arg, _ = _group_inside_delimiter(latex_string[string_idx:])  # assume that the last character is always the ending curly brace
-        yield command, arg
+        args = []
+        while re.match(r'\s*\{', latex_string[string_idx:]):
+            arg, next_start = _group_inside_delimiter(latex_string[string_idx:])  # assume that the last character is always the ending curly brace
+            args.append(arg)
+            string_idx += next_start
+        yield command, tuple(args), opt_arg
 
 
 def strip_comments(latex_str):
@@ -74,7 +103,7 @@ def strip_comments(latex_str):
     :return: latex_str with comments removed
     :rtype: str
     """
-    latex_str = re.sub(r'^%')
+    latex_str = re.sub(r'^%.*?(?=\n)', '', latex_str)  # handle case where % is the very first character in the string
     return re.sub(r'(?<=[^\\])%.*?(?=\n)', '', latex_str)
 
 
