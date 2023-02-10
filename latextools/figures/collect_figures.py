@@ -32,7 +32,7 @@ def iter_figures(tex_file, require_label=False, figure_envs=['figure', 'figure*'
     #       the first group, which will be the part in parentheses in the \begin regex
     #
     #   .+? non-greedy search for any character (with at least 1) between the begin and end
-    figure_re = r'\\begin\{(' + fig_envs_re + ')\}.+?\\end\{\\1\}'
+    figure_re = r'\\begin\{(' + fig_envs_re + r')\}.+?\\end\{\1\}'
     for match in re.finditer(figure_re, text, flags=re_flags):
         curr_fig += 1
 
@@ -86,7 +86,8 @@ def driver(tex_file, output_dir, filename_pattern=default_pattern, require_label
         if not os.path.isabs(img_file):
             img_file = os.path.join(tex_dir, img_file)
 
-        dest_file = os.path.join(output_dir, filename_pattern.format(num=fig_num) + img_ext)
+        dest_file = os.path.join(output_dir, filename_pattern.format(num=int(fig_num)) + img_ext)
+            
 
         if verbose > 0:
             print('Copying {} -> {}'.format(img_file, dest_file))
@@ -114,7 +115,7 @@ def parse_args(parser=None):
                              'the number of the figure, assuming sequential numbering from 1 through the file. '
                              'Setting this flag will cause it to error if it cannot find a label instead. '
                              'Use this if your figures are not labeled 1, 2, 3,...')
-    parser.add_argument('-v', '--verbose', action='count', help='Increase verbosity')
+    parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase verbosity')
 
     if am_i_main:
         return vars(parser.parse_args())

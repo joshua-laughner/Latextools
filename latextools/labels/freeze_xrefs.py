@@ -12,7 +12,9 @@ pageref_re = re.compile(r'\\pageref\{.+?\}')
 
 
 def find_external_files(tex_file):
-    xr_re = re.compile(r'(?<=\\externaldocument\{).+(?=\})')
+    # Look for a line line \externaldocument{supplement/mysupp} or \externaldocument[supp-]{supplement/mysupp}
+    # Capture the square brackets (if present) in a group referred to by "prefix" and the document in the group "doc"
+    xr_re = re.compile(r'\\externaldocument(?P<prefix>\[[\w\-]+\])?\{(?P<doc>.+)\}')
     external_docs = []
     tex_path = os.path.dirname(tex_file)
     with open(tex_file, 'r') as tex:
@@ -20,22 +22,29 @@ def find_external_files(tex_file):
             m = xr_re.search(line)
             if m is not None:
                 # If the external document is not an absolute path, then make it such, relative to the tex document.
-                ex_doc = m.group()
+                ex_doc = m.group('doc')
                 if not os.path.isabs(ex_doc):
                     ex_doc = os.path.abspath(os.path.join(tex_path, ex_doc))
 
-                external_docs.append(ex_doc)
+                prefix = m.group('prefix')
+                if prefix is not None:
+                    # The regex captures the square brackets so get rid of those
+                    prefix = prefix.lstrip('[').rstrip(']')
+
+                external_docs.append((ex_doc, prefix))
 
     return external_docs
 
 
 def list_available_labels(external_docs):
-    labels = []
-    for doc in external_docs:
+    all_labels = []
+    for doc, prefix in external_docs:
         aux_data = utils.parse_aux_file(doc)
-        labels += aux_data['labels']
+        for label in aux_data['labels']:
+            label['label'] = f'{prefix}{label["label"]}'
+            all_labels.append(label)
 
-    return labels
+    return all_labels
 
 
 def replace_labels_in_line(line, re_obj, labels_dict, retain_ref=True):
@@ -67,6 +76,7 @@ def driver(tex_file, keep_refs=False):
     tex_file_out = tex_file_in.replace('.tex', '-xrfrozen.tex')
     ex_files = find_external_files(tex_file_in)
     labels = list_available_labels(ex_files)
+    print(ex_files, labels)
     replace_external_refs(tex_file_in, tex_file_out, labels, retain_ref=keep_refs)
 
 
